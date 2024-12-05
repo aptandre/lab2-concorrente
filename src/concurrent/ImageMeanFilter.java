@@ -1,6 +1,8 @@
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+
 import javax.imageio.ImageIO;
 
 /**
@@ -40,16 +42,36 @@ public class ImageMeanFilter {
             originalImage.getHeight(), 
             BufferedImage.TYPE_INT_RGB
         );
+
+        int width = originalImage.getWidth();
+        int height = originalImage.getHeight();
         
         // AQUI
+        ArrayList<Thread> threads = new ArrayList<>();
+        
+        int x_size = width / qtThreads;
+        int y_size = height / qtThreads;
+
         int x = 0;
         int y = 0;
+
+        // A ideia aqui é fazer com que tenha-se sempre uma janela e cada thread pega uma janela diferente da imagem
+        // e a processa em paralelo, cada thread pega um chunk baseado no limite da imagem. Fazemos n threads sendo n
+        // o valor passado pelo usuário e dividimos a imagem com base no tamanho total da imagem para dividir para as n threads
+        // e cada thread pega um chunk proporcional a isso.
         for (int i = 0; i < qtThreads; i++) {
-            Thread imageThread = new Thread(new ImageRunnable(originalImage, kernelSize, filteredImage, x, y, kernelSize), "imageThread");
-            x += kernelSize;
-            y += kernelSize;
+            Thread imageThread = new Thread(new ImageRunnable(originalImage, kernelSize, filteredImage, x, y, x_size, y_size, kernelSize), "imageThread");
+            x += x_size;
+            y += y_size;
+            x_size += x_size;
+            y_size += y_size;
             imageThread.start();
-            imageThread.join();
+            threads.add(imageThread);
+
+        }
+
+        for (Thread thread : threads) {
+            thread.join();
         }
         // AQUI
         
@@ -148,23 +170,25 @@ public class ImageMeanFilter {
         private int x_value;
         private int y_value;
         private int window_size;
+        private int x_size;
+        private int y_size;
 
-        public ImageRunnable(BufferedImage original, int kernelSize, BufferedImage filteredImage, int x, int y, int window_size) {
+        public ImageRunnable(BufferedImage original, int kernelSize, BufferedImage filteredImage, int x, int y, int x_size, int y_size, int window_size) {
             this.originalImage = original;
             this.kernelSize = kernelSize;
             this.filteredImage = filteredImage;
             this.x_value = x;
             this.y_value = y;
+            this.x_size = x_size;
+            this.y_size = y_size;
             this.window_size = window_size;
         }
 
         @Override
         public void run() {
-            int width = this.originalImage.getWidth();
-            int height = this.originalImage.getHeight();
             // Process each pixel
-            for (int y = y_value; y < y_value + window_size; y++) {
-                for (int x = x_value; x < x_value + window_size; x++) {
+            for (int y = y_value; y < y_size + window_size; y++) {
+                for (int x = x_value; x < x_size + window_size; x++) {
                     // Calculate neighborhood average
                     int[] avgColor = calculateNeighborhoodAverage(this.originalImage, x, y, this.kernelSize);
                     
